@@ -54,7 +54,7 @@
          CONTENU PRINCIPAL — Card centrée responsive
          ============================================================ -->
     <main class="flex-1 flex items-start justify-center px-4 py-8 sm:py-12 md:items-center">
-        <div class="w-full max-w-lg">
+        <div class="w-full max-w-3xl">
 
             <!-- CARD PRINCIPALE -->
             <div class="signature-card" id="signature-card">
@@ -105,6 +105,34 @@
                         Les informations nécessaires à la signature de votre devis sont manquantes.<br>
                         Veuillez utiliser le lien qui vous a été envoyé par e-mail.
                     </p>
+                </div>
+
+                <!-- ========================================
+                     ZONE "DÉJÀ SIGNÉ" (masquée par défaut)
+                     Affichée si l'API retourne {signed: true}
+                     ======================================== -->
+                <div class="already-signed-zone" id="already-signed-zone">
+                    <div class="already-signed-icon-wrapper">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                    </div>
+                    <h2 class="already-signed-title">Ce devis a déjà été signé et validé</h2>
+                    <p class="already-signed-text">
+                        Votre signature a bien été enregistrée pour ce devis. Aucune action supplémentaire n'est
+                        requise.<br>
+                        Contactez-nous pour toute question.
+                    </p>
+                    <div class="already-signed-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <span id="already-signed-devis-id"></span>
+                    </div>
                 </div>
 
                 <!-- ========================================
@@ -173,51 +201,95 @@
                         </div>
                     </section>
 
-                    <!-- Zone de signature -->
-                    <section class="signature-section">
-                        <p class="signature-label">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
-                            </svg>
-                            Votre signature
-                        </p>
-                        <div class="canvas-wrapper">
-                            <canvas id="signature-canvas"></canvas>
-                            <span class="canvas-placeholder" id="canvas-placeholder">Signez ici avec votre doigt ou
-                                votre souris</span>
+                    <!-- Layout 2 colonnes : PDF (gauche) + Signature (droite) sur desktop -->
+                    <div class="form-layout">
+
+                        <!-- ========================================
+                             COLONNE GAUCHE : Visualisation du devis PDF
+                             (masquée si pas de paramètre pdf dans l'URL)
+                             ======================================== -->
+                        <section class="pdf-viewer-section" id="pdf-viewer-section" style="display:none;">
+                            <p class="pdf-viewer-label">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                Votre devis
+                            </p>
+                            <div class="pdf-viewer-container">
+                                <iframe id="pdf-iframe" allowfullscreen title="Aperçu du devis"></iframe>
+                            </div>
+                            <a class="btn-download-pdf" id="download-pdf-btn" target="_blank" rel="noopener noreferrer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Télécharger une copie de mon devis (PDF)
+                            </a>
+                        </section>
+
+                        <!-- ========================================
+                             COLONNE DROITE : Signature + Actions
+                             ======================================== -->
+                        <div class="signature-column">
+
+                            <!-- Zone de signature -->
+                            <section class="signature-section">
+                                <p class="signature-label">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+                                    </svg>
+                                    Votre signature
+                                </p>
+                                <div class="canvas-wrapper">
+                                    <canvas id="signature-canvas"></canvas>
+                                    <span class="canvas-placeholder" id="canvas-placeholder">Signez ici avec votre doigt
+                                        ou
+                                        votre souris</span>
+                                </div>
+                            </section>
+
+                            <!-- Checkbox d'acceptation -->
+                            <section class="checkbox-section">
+                                <label class="checkbox-label" for="accept-checkbox">
+                                    <input type="checkbox" id="accept-checkbox">
+                                    <span class="checkbox-text">
+                                        Je certifie avoir pris connaissance du devis et donne mon bon pour accord.
+                                    </span>
+                                </label>
+                            </section>
+
+                            <!-- Boutons d'action -->
+                            <section class="buttons-section">
+                                <!-- Bouton Effacer (style secondaire) -->
+                                <button type="button" class="btn-secondary" id="clear-btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path d="M3 6h18"></path>
+                                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                    </svg>
+                                    Effacer
+                                </button>
+                                <!-- Bouton Valider (style CTA principal Sarange) -->
+                                <button type="button" class="btn-primary" id="submit-btn" disabled>
+                                    <span id="submit-btn-spinner" class="spinner hidden"></span>
+                                    <span id="submit-btn-text">Valider et Signer</span>
+                                </button>
+                            </section>
+
                         </div>
-                    </section>
+                        <!-- /signature-column -->
 
-                    <!-- Checkbox d'acceptation -->
-                    <section class="checkbox-section">
-                        <label class="checkbox-label" for="accept-checkbox">
-                            <input type="checkbox" id="accept-checkbox">
-                            <span class="checkbox-text">
-                                Je certifie avoir pris connaissance du devis et donne mon bon pour accord.
-                            </span>
-                        </label>
-                    </section>
-
-                    <!-- Boutons d'action -->
-                    <section class="buttons-section">
-                        <!-- Bouton Effacer (style secondaire) -->
-                        <button type="button" class="btn-secondary" id="clear-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M3 6h18"></path>
-                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                            </svg>
-                            Effacer
-                        </button>
-                        <!-- Bouton Valider (style CTA principal Sarange) -->
-                        <button type="button" class="btn-primary" id="submit-btn" disabled>
-                            <span id="submit-btn-spinner" class="spinner hidden"></span>
-                            <span id="submit-btn-text">Valider et Signer</span>
-                        </button>
-                    </section>
+                    </div>
+                    <!-- /form-layout -->
 
                 </div>
                 <!-- /form-section -->

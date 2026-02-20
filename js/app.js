@@ -29,36 +29,73 @@ let elements = {};
 
 /**
  * Extrait les paramètres de l'URL courante.
- * @returns {Object|null} Objet { devis, client, email } ou null si incomplet.
+ * @returns {Object|null} Objet { devis, client, email, pdf } ou null si paramètres obligatoires manquants.
  */
 function getUrlParams() {
     const params = new URLSearchParams(window.location.search);
     const devis = params.get('devis');
     const client = params.get('client');
     const email = params.get('email');
+    const pdf = params.get('pdf'); // Optionnel — ID Google Drive du PDF
 
     // Vérifie que les trois paramètres obligatoires sont présents
     if (!devis || !client || !email) {
         return null;
     }
 
-    return { devis, client, email };
+    return { devis, client, email, pdf };
 }
 
 // ============================================================
-// 2. INITIALISATION DE LA PAGE
+// 2. VÉRIFICATION ANTI-DOUBLE SIGNATURE
+// ============================================================
+
+/**
+ * Vérifie auprès de l'API si le devis a déjà été signé.
+ * @param {string} devisNumber - Numéro du devis à vérifier.
+ * @returns {Promise<boolean>} true si déjà signé, false sinon.
+ */
+async function checkAlreadySigned(devisNumber) {
+    try {
+        const response = await fetch(API_URL + '?check=' + encodeURIComponent(devisNumber), {
+            method: 'GET',
+            redirect: 'follow',
+        });
+        const result = await response.json();
+        return result.signed === true;
+    } catch (error) {
+        console.warn('Impossible de vérifier le statut du devis :', error);
+        // En cas d'erreur réseau, on laisse le formulaire accessible
+        return false;
+    }
+}
+
+/**
+ * Affiche le bloc "déjà signé" et masque le formulaire.
+ * @param {string} devisNumber - Numéro du devis.
+ */
+function showAlreadySigned(devisNumber) {
+    elements.formSection.classList.add('hidden');
+    elements.alreadySignedZone.style.display = 'block';
+    elements.alreadySignedDevisId.textContent = devisNumber;
+}
+
+// ============================================================
+// 3. INITIALISATION DE LA PAGE
 // ============================================================
 
 /**
  * Point d'entrée principal. Initialise la page en fonction
  * de la présence ou non des paramètres URL.
  */
-function initPage() {
+async function initPage() {
     // Récupération des références DOM
     elements = {
         formSection: document.getElementById('form-section'),
         errorZone: document.getElementById('error-zone'),
         successZone: document.getElementById('success-zone'),
+        alreadySignedZone: document.getElementById('already-signed-zone'),
+        alreadySignedDevisId: document.getElementById('already-signed-devis-id'),
         clientName: document.getElementById('client-name'),
         clientEmail: document.getElementById('client-email'),
         devisNumber: document.getElementById('devis-number'),
@@ -70,6 +107,9 @@ function initPage() {
         submitBtnSpinner: document.getElementById('submit-btn-spinner'),
         clearBtn: document.getElementById('clear-btn'),
         successDevisId: document.getElementById('success-devis-id'),
+        pdfViewerSection: document.getElementById('pdf-viewer-section'),
+        pdfIframe: document.getElementById('pdf-iframe'),
+        downloadPdfBtn: document.getElementById('download-pdf-btn'),
     };
 
     // Lecture des paramètres URL
@@ -87,6 +127,20 @@ function initPage() {
     elements.clientEmail.textContent = params.email;
     elements.devisNumber.textContent = params.devis;
 
+    // --- Gestion de l'iframe PDF ---
+    if (params.pdf) {
+        elements.pdfViewerSection.style.display = 'block';
+        elements.pdfIframe.src = 'https://drive.google.com/file/d/' + params.pdf + '/preview';
+        elements.downloadPdfBtn.href = 'https://drive.google.com/uc?export=download&id=' + params.pdf;
+    }
+
+    // --- Vérification anti-double signature (appel GET) ---
+    const alreadySigned = await checkAlreadySigned(params.devis);
+    if (alreadySigned) {
+        showAlreadySigned(params.devis);
+        return; // On arrête ici, pas besoin d'initialiser le pad
+    }
+
     // Initialisation du pad de signature
     initSignaturePad();
 
@@ -100,7 +154,7 @@ function initPage() {
 }
 
 // ============================================================
-// 3. SIGNATURE PAD — Initialisation et redimensionnement
+// 4. SIGNATURE PAD — Initialisation et redimensionnement
 // ============================================================
 
 /**
@@ -173,7 +227,7 @@ function resizeCanvas() {
 }
 
 // ============================================================
-// 4. INTERACTIONS — Boutons et validation
+// 5. INTERACTIONS — Boutons et validation
 // ============================================================
 
 /**
@@ -203,7 +257,7 @@ function handleClear() {
 }
 
 // ============================================================
-// 5. ENVOI DES DONNÉES — Appel API vers Google Apps Script
+// 6. ENVOI DES DONNÉES — Appel API vers Google Apps Script
 // ============================================================
 
 /**
@@ -211,7 +265,7 @@ function handleClear() {
  * 1. Affiche un état de chargement
  * 2. Extrait l'image en base64
  * 3. Prépare et envoie le payload JSON
- * 4. Gère le succès ou l'erreur
+ * 4. Gère le succès ou l'erreur (+ cas already_signed)
  */
 async function handleSubmit() {
     // Sécurité : double vérification
@@ -254,8 +308,12 @@ async function handleSubmit() {
         // Lecture de la réponse
         const result = await response.json();
 
-        if (result.status === 'success' || response.ok) {
-            // --- 5. Succès → Affichage du message de confirmation ---
+        // --- 5. Gestion de la réponse ---
+        if (result.status === 'error' && result.message === 'already_signed') {
+            // Le devis a été signé entre-temps → afficher l'alerte verte
+            showAlreadySigned(params.devis);
+        } else if (result.status === 'success' || response.ok) {
+            // Succès → Affichage du message de confirmation
             showSuccess(params.devis);
         } else {
             throw new Error(result.message || 'Erreur inconnue du serveur.');

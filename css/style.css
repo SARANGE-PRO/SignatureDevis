@@ -8,22 +8,38 @@
 
 /* --- Variables CSS (Charte Sarange) --- */
 :root {
-    --sarange-orange: #F97316;       /* Orange Action — CTA, accents */
-    --sarange-orange-hover: #EA580C; /* Orange 600 — Hover du CTA */
-    --sarange-orange-light: #FFF7ED; /* Orange 50 — Fond léger orange */
-    --sarange-orange-100: #FFEDD5;   /* Orange 100 — Fond checkbox hover */
-    --sarange-slate-900: #0F172A;    /* Slate Dark — Textes principaux */
-    --sarange-slate-700: #334155;    /* Slate 700 — Textes secondaires */
-    --sarange-slate-500: #64748B;    /* Slate 500 — Textes descriptifs */
-    --sarange-slate-300: #CBD5E1;    /* Slate 300 — Bordures subtiles */
-    --sarange-slate-200: #E2E8F0;    /* Slate 200 — Bordures de carte */
-    --sarange-slate-100: #F1F5F9;    /* Slate 100 — Fond canvas signature */
-    --sarange-slate-50: #F8FAFC;     /* Slate 50 — Fond de page */
-    --sarange-white: #FFFFFF;        /* Blanc — Fond de carte */
-    --sarange-green-500: #22C55E;    /* Vert succès */
-    --sarange-green-50: #F0FDF4;     /* Fond succès */
-    --sarange-red-500: #EF4444;      /* Rouge erreur */
-    --sarange-red-50: #FEF2F2;       /* Fond erreur */
+    --sarange-orange: #F97316;
+    /* Orange Action — CTA, accents */
+    --sarange-orange-hover: #EA580C;
+    /* Orange 600 — Hover du CTA */
+    --sarange-orange-light: #FFF7ED;
+    /* Orange 50 — Fond léger orange */
+    --sarange-orange-100: #FFEDD5;
+    /* Orange 100 — Fond checkbox hover */
+    --sarange-slate-900: #0F172A;
+    /* Slate Dark — Textes principaux */
+    --sarange-slate-700: #334155;
+    /* Slate 700 — Textes secondaires */
+    --sarange-slate-500: #64748B;
+    /* Slate 500 — Textes descriptifs */
+    --sarange-slate-300: #CBD5E1;
+    /* Slate 300 — Bordures subtiles */
+    --sarange-slate-200: #E2E8F0;
+    /* Slate 200 — Bordures de carte */
+    --sarange-slate-100: #F1F5F9;
+    /* Slate 100 — Fond canvas signature */
+    --sarange-slate-50: #F8FAFC;
+    /* Slate 50 — Fond de page */
+    --sarange-white: #FFFFFF;
+    /* Blanc — Fond de carte */
+    --sarange-green-500: #22C55E;
+    /* Vert succès */
+    --sarange-green-50: #F0FDF4;
+    /* Fond succès */
+    --sarange-red-500: #EF4444;
+    /* Rouge erreur */
+    --sarange-red-50: #FEF2F2;
+    /* Fond erreur */
     --font-family: 'Inter', sans-serif;
 }
 
@@ -117,7 +133,8 @@ body {
 
 /* --- ZONE D'ERREUR --- */
 .error-zone {
-    display: none; /* Masquée par défaut, montrée par JS si besoin */
+    display: none;
+    /* Masquée par défaut, montrée par JS si besoin */
     background-color: var(--sarange-red-50);
     border: 1px solid #FECACA;
     border-radius: 0.75rem;
@@ -300,7 +317,8 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    min-height: 50px; /* Facile à toucher sur mobile */
+    min-height: 50px;
+    /* Facile à toucher sur mobile */
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -333,12 +351,15 @@ body {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* --- ZONE DE SUCCÈS --- */
 .success-zone {
-    display: none; /* Masquée par défaut, montrée par JS */
+    display: none;
+    /* Masquée par défaut, montrée par JS */
     text-align: center;
     padding: 3rem 1.5rem;
 }
@@ -356,8 +377,15 @@ body {
 }
 
 @keyframes scaleIn {
-    0% { transform: scale(0); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .success-icon-wrapper svg {
@@ -409,6 +437,164 @@ body {
 
 .page-footer a:hover {
     text-decoration: underline;
+}
+
+/* --- ZONE "DÉJÀ SIGNÉ" --- */
+.already-signed-zone {
+    display: none;
+    /* Masquée par défaut, montrée par JS */
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.already-signed-icon-wrapper {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    background-color: var(--sarange-green-50);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+    animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.already-signed-icon-wrapper svg {
+    color: var(--sarange-green-500);
+}
+
+.already-signed-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--sarange-green-500);
+    margin: 0 0 0.5rem 0;
+}
+
+.already-signed-text {
+    font-size: 0.9375rem;
+    color: var(--sarange-slate-500);
+    margin: 0;
+    line-height: 1.6;
+    max-width: 28rem;
+    display: inline-block;
+}
+
+.already-signed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 1.25rem;
+    background-color: var(--sarange-green-50);
+    color: var(--sarange-green-500);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid #BBF7D0;
+}
+
+/* --- LAYOUT FORMULAIRE (2 colonnes sur desktop) --- */
+.form-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+@media (min-width: 768px) {
+    .form-layout {
+        flex-direction: row;
+        gap: 0;
+    }
+}
+
+/* --- Colonne Signature --- */
+.signature-column {
+    flex: 1;
+    min-width: 0;
+}
+
+/* --- SECTION VISUALISATION PDF --- */
+.pdf-viewer-section {
+    padding: 1.5rem;
+    flex: 1.3;
+    min-width: 0;
+}
+
+@media (min-width: 768px) {
+    .pdf-viewer-section {
+        border-right: 1px solid var(--sarange-slate-200);
+    }
+}
+
+.pdf-viewer-label {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--sarange-slate-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pdf-viewer-container {
+    border-radius: 0.75rem;
+    border: 1px solid var(--sarange-slate-200);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    background-color: var(--sarange-slate-100);
+}
+
+.pdf-viewer-container iframe {
+    display: block;
+    width: 100%;
+    height: 50vh;
+    border: none;
+}
+
+@media (min-width: 768px) {
+    .pdf-viewer-container iframe {
+        height: 70vh;
+    }
+}
+
+/* --- BOUTON TÉLÉCHARGEMENT PDF --- */
+.btn-download-pdf {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background-color: var(--sarange-slate-100);
+    color: var(--sarange-slate-900);
+    border: 1px solid var(--sarange-slate-200);
+    border-radius: 9999px;
+    font-family: var(--font-family);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-download-pdf:hover {
+    background-color: var(--sarange-slate-200);
+    border-color: var(--sarange-slate-300);
+    color: var(--sarange-slate-900);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.btn-download-pdf:active {
+    transform: scale(0.98);
+}
+
+.btn-download-pdf svg {
+    color: var(--sarange-orange);
+    flex-shrink: 0;
 }
 
 /* --- UTILITAIRES --- */
