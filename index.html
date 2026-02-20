@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- Meta viewport obligatoire pour le responsive Mobile-First -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Signature de Devis — Sarange</title>
+    <meta name="description" content="Validez et signez votre devis Sarange en toute sécurité.">
+    <meta name="robots" content="noindex, nofollow">
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts — Inter (Typographie officielle Sarange) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+
+    <!-- Signature Pad via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
+
+    <!-- Styles personnalisés Sarange -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Configuration Tailwind pour la charte Sarange -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            orange: '#F97316',
+                            'orange-hover': '#EA580C',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-slate-50 min-h-screen flex flex-col font-sans">
+
+    <!-- ============================================================
+         CONTENU PRINCIPAL — Card centrée responsive
+         ============================================================ -->
+    <main class="flex-1 flex items-start justify-center px-4 py-8 sm:py-12 md:items-center">
+        <div class="w-full max-w-lg">
+
+            <!-- CARD PRINCIPALE -->
+            <div class="signature-card" id="signature-card">
+
+                <!-- ========================================
+                     EN-TÊTE : Logo Sarange + Titre
+                     ======================================== -->
+                <header class="card-header">
+                    <!-- Logo SVG Sarange (version négative sur fond sombre) -->
+                    <div class="logo-container">
+                        <svg viewBox="0 0 240 60" class="h-8 w-auto">
+                            <defs>
+                                <linearGradient id="textGradDark" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stop-color="#FFFFFF" />
+                                    <stop offset="100%" stop-color="#CBD5E1" />
+                                </linearGradient>
+                            </defs>
+                            <text x="0" y="45" font-family="'Inter', sans-serif" font-weight="900" font-size="48"
+                                fill="url(#textGradDark)" letter-spacing="-0.05em">SARANGE</text>
+                            <circle cx="232" cy="40" r="5" fill="#F97316" />
+                        </svg>
+                    </div>
+                    <p class="page-title">Validation et signature du devis</p>
+                </header>
+
+                <!-- Barre bicolore séparatrice -->
+                <div class="bicolor-separator">
+                    <div class="sep-orange"></div>
+                    <div class="sep-slate"></div>
+                </div>
+
+                <!-- ========================================
+                     ZONE D'ERREUR (masquée par défaut)
+                     Affichée si les paramètres URL sont absents
+                     ======================================== -->
+                <div class="error-zone" id="error-zone">
+                    <div class="error-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                            class="mx-auto">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <h2 class="error-title">Lien de signature invalide ou expiré</h2>
+                    <p class="error-text">
+                        Les informations nécessaires à la signature de votre devis sont manquantes.<br>
+                        Veuillez utiliser le lien qui vous a été envoyé par e-mail.
+                    </p>
+                </div>
+
+                <!-- ========================================
+                     ZONE DE SUCCÈS (masquée par défaut)
+                     Affichée après envoi réussi
+                     ======================================== -->
+                <div class="success-zone" id="success-zone">
+                    <div class="success-icon-wrapper">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </div>
+                    <h2 class="success-title">Devis signé avec succès !</h2>
+                    <p class="success-text">
+                        Votre signature a bien été enregistrée. Vous recevrez une confirmation par e-mail sous quelques
+                        instants.
+                    </p>
+                    <div class="success-devis-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <span id="success-devis-id"></span>
+                    </div>
+                </div>
+
+                <!-- ========================================
+                     FORMULAIRE (masqué si erreur d'URL)
+                     ======================================== -->
+                <div id="form-section">
+
+                    <!-- Informations client (remplies dynamiquement par JS) -->
+                    <section class="client-info-section">
+                        <div class="flex flex-wrap gap-2">
+                            <span class="info-badge">
+                                <svg class="badge-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                <span id="client-name">—</span>
+                            </span>
+                            <span class="info-badge">
+                                <svg class="badge-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                                </svg>
+                                <span id="client-email">—</span>
+                            </span>
+                            <span class="info-badge">
+                                <svg class="badge-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                </svg>
+                                Devis n° <strong id="devis-number">—</strong>
+                            </span>
+                        </div>
+                    </section>
+
+                    <!-- Zone de signature -->
+                    <section class="signature-section">
+                        <p class="signature-label">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+                            </svg>
+                            Votre signature
+                        </p>
+                        <div class="canvas-wrapper">
+                            <canvas id="signature-canvas"></canvas>
+                            <span class="canvas-placeholder" id="canvas-placeholder">Signez ici avec votre doigt ou
+                                votre souris</span>
+                        </div>
+                    </section>
+
+                    <!-- Checkbox d'acceptation -->
+                    <section class="checkbox-section">
+                        <label class="checkbox-label" for="accept-checkbox">
+                            <input type="checkbox" id="accept-checkbox">
+                            <span class="checkbox-text">
+                                Je certifie avoir pris connaissance du devis et donne mon bon pour accord.
+                            </span>
+                        </label>
+                    </section>
+
+                    <!-- Boutons d'action -->
+                    <section class="buttons-section">
+                        <!-- Bouton Effacer (style secondaire) -->
+                        <button type="button" class="btn-secondary" id="clear-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            </svg>
+                            Effacer
+                        </button>
+                        <!-- Bouton Valider (style CTA principal Sarange) -->
+                        <button type="button" class="btn-primary" id="submit-btn" disabled>
+                            <span id="submit-btn-spinner" class="spinner hidden"></span>
+                            <span id="submit-btn-text">Valider et Signer</span>
+                        </button>
+                    </section>
+
+                </div>
+                <!-- /form-section -->
+
+            </div>
+            <!-- /signature-card -->
+
+        </div>
+    </main>
+
+    <!-- ============================================================
+         FOOTER
+         ============================================================ -->
+    <footer class="page-footer">
+        © 2026 <a href="https://www.sarange.fr" target="_blank" rel="noopener">Sarange</a> — Signature électronique
+        sécurisée
+    </footer>
+
+    <!-- Logique applicative -->
+    <script src="js/app.js"></script>
+
+</body>
+
+</html>
