@@ -58,6 +58,13 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+@media (min-width: 768px) {
+    body {
+        background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 50%, #F8FAFC 100%);
+        min-height: 100vh;
+    }
+}
+
 /* --- CARD PRINCIPALE --- */
 .signature-card {
     background-color: var(--sarange-white);
@@ -67,11 +74,36 @@ body {
     overflow: hidden;
 }
 
+@media (min-width: 768px) {
+    .signature-card {
+        border-radius: 1.25rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8);
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+    }
+
+    .signature-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05), 0 20px 50px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.9);
+    }
+}
+
 /* --- EN-TÊTE avec logo --- */
 .card-header {
     background-color: var(--sarange-slate-900);
     padding: 1.5rem 1.5rem;
     text-align: center;
+}
+
+@media (min-width: 768px) {
+    .card-header {
+        padding: 2.25rem 2.5rem;
+        background: linear-gradient(160deg, #1E293B 0%, #0F172A 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        gap: 1.5rem;
+    }
 }
 
 .card-header .logo-container {
@@ -82,12 +114,29 @@ body {
     margin-bottom: 0.75rem;
 }
 
+@media (min-width: 768px) {
+    .card-header .logo-container {
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+}
+
 .card-header .page-title {
     color: var(--sarange-slate-300);
     font-size: 0.875rem;
     font-weight: 500;
     letter-spacing: 0.025em;
     margin: 0;
+}
+
+@media (min-width: 768px) {
+    .card-header .page-title {
+        font-size: 1rem;
+        color: #94A3B8;
+        border-left: 2px solid var(--sarange-orange);
+        padding-left: 1rem;
+        line-height: 1.4;
+    }
 }
 
 /* --- Barre bicolore séparatrice (orange + slate) --- */
@@ -111,6 +160,12 @@ body {
 .client-info-section {
     padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--sarange-slate-200);
+}
+
+@media (min-width: 768px) {
+    .client-info-section {
+        padding: 1.25rem 2rem;
+    }
 }
 
 .info-badge {
@@ -167,6 +222,12 @@ body {
     padding: 1.5rem;
 }
 
+@media (min-width: 768px) {
+    .signature-section {
+        padding: 2rem 2rem 1.5rem 2rem;
+    }
+}
+
 .signature-label {
     font-size: 0.8125rem;
     font-weight: 700;
@@ -206,6 +267,12 @@ body {
     background-color: transparent;
 }
 
+@media (min-width: 768px) {
+    #signature-canvas {
+        height: 260px;
+    }
+}
+
 /* Placeholder visuel dans le canvas */
 .canvas-placeholder {
     position: absolute;
@@ -227,6 +294,12 @@ body {
 /* --- CHECKBOX D'ACCEPTATION --- */
 .checkbox-section {
     padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .checkbox-section {
+        padding: 0 2rem 1.5rem 2rem;
+    }
 }
 
 .checkbox-label {
@@ -270,6 +343,12 @@ body {
     padding: 0 1.5rem 1.5rem 1.5rem;
     display: flex;
     gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+    .buttons-section {
+        padding: 0 2rem 2rem 2rem;
+    }
 }
 
 /* Bouton secondaire (Effacer) */
@@ -504,6 +583,7 @@ body {
     .form-layout {
         flex-direction: row;
         gap: 0;
+        align-items: stretch;
     }
 }
 
@@ -513,16 +593,28 @@ body {
     min-width: 0;
 }
 
+@media (min-width: 768px) {
+    .signature-column {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        background-color: var(--sarange-slate-50);
+        /* Légère distinction de fond pour la zone d'action */
+    }
+}
+
 /* --- SECTION VISUALISATION PDF --- */
 .pdf-viewer-section {
     padding: 1.5rem;
-    flex: 1.3;
+    flex: 1.6;
+    /* Un peu plus de place pour le PDF sur grand écran */
     min-width: 0;
 }
 
 @media (min-width: 768px) {
     .pdf-viewer-section {
         border-right: 1px solid var(--sarange-slate-200);
+        padding: 2rem;
     }
 }
 
@@ -555,7 +647,8 @@ body {
 
 @media (min-width: 768px) {
     .pdf-viewer-container iframe {
-        height: 70vh;
+        height: 75vh;
+        min-height: 500px;
     }
 }
 

@@ -20,6 +20,9 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzTS1SgE9Lg3WlFHrC5q-js
 /** Instance de SignaturePad */
 let signaturePad = null;
 
+/** Flag indiquant la présence d'un cachet d'entreprise */
+let hasStamp = false;
+
 /** Références aux éléments du DOM (initialisées dans initPage) */
 let elements = {};
 
@@ -110,6 +113,8 @@ async function initPage() {
         pdfViewerSection: document.getElementById('pdf-viewer-section'),
         pdfIframe: document.getElementById('pdf-iframe'),
         downloadPdfBtn: document.getElementById('download-pdf-btn'),
+        stampBtn: document.getElementById('stamp-btn'),
+        stampUpload: document.getElementById('stamp-upload'),
     };
 
     // Lecture des paramètres URL
@@ -148,6 +153,12 @@ async function initPage() {
     elements.acceptCheckbox.addEventListener('change', updateSubmitButton);
     elements.clearBtn.addEventListener('click', handleClear);
     elements.submitBtn.addEventListener('click', handleSubmit);
+
+    // --- B2B : Gestion du cachet ---
+    if (elements.stampBtn && elements.stampUpload) {
+        elements.stampBtn.addEventListener('click', () => elements.stampUpload.click());
+        elements.stampUpload.addEventListener('change', handleStampUpload);
+    }
 
     // Mise à jour initiale de l'état du bouton
     updateSubmitButton();
@@ -240,7 +251,7 @@ function updateSubmitButton() {
     if (!signaturePad || !elements.submitBtn) return;
 
     const isChecked = elements.acceptCheckbox.checked;
-    const hasSigned = !signaturePad.isEmpty();
+    const hasSigned = !signaturePad.isEmpty() || hasStamp;
 
     elements.submitBtn.disabled = !(isChecked && hasSigned);
 }
@@ -252,20 +263,68 @@ function handleClear() {
     if (signaturePad) {
         signaturePad.clear();
     }
+    hasStamp = false;
     elements.canvasPlaceholder.classList.remove('is-hidden');
     updateSubmitButton();
 }
 
+/**
+ * Gère l'upload et le dessin du cachet d'entreprise sur le canvas.
+ */
+function handleStampUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+            const canvas = elements.signatureCanvas;
+            const ctx = canvas.getContext('2d');
+
+            // On récupère le ratio du canvas pour dessiner proprement
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+
+            // Dimensions cibles (max 150px de large)
+            const maxWidth = 150;
+            const scale = Math.min(maxWidth / img.width, 1);
+            const w = img.width * scale;
+            const h = img.height * scale;
+
+            // Centrage
+            const x = (canvas.width / ratio - w) / 2;
+            const y = (canvas.height / ratio - h) / 2;
+
+            // Dessin sur le canvas
+            ctx.drawImage(img, x, y, w, h);
+
+            // Flag de présence de contenu
+            hasStamp = true;
+
+            // Masquer le placeholder car le canvas n'est plus vide
+            elements.canvasPlaceholder.classList.add('is-hidden');
+
+            // Activer le bouton de validation
+            updateSubmitButton();
+
+            // Réinitialiser l'input pour permettre de ré-uploader la même image
+            elements.stampUpload.value = '';
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
 // ============================================================
-// 6. ENVOI DES DONNÉES — Appel API vers Google Apps Script
+// 6. GÉNÉRATION DU PDF SIGNÉ ET ENVOI
 // ============================================================
 
 /**
  * Gère le clic sur "Valider et Signer" :
- * 1. Affiche un état de chargement
- * 2. Extrait l'image en base64
- * 3. Prépare et envoie le payload JSON
- * 4. Gère le succès ou l'erreur (+ cas already_signed)
+ * 1. Affiche un état de chargement.
+ * 2. Génère le PDF signé (si un ID de PDF est présent).
+ * 3. Prépare et envoie le payload final (avec le PDF en base64 si généré).
+ * 4. Gère le succès ou l'erreur.
  */
 async function handleSubmit() {
     // Sécurité : double vérification
@@ -274,28 +333,34 @@ async function handleSubmit() {
     }
 
     const params = getUrlParams();
-    if (!params) return;
+    if (!params) return; // Ne devrait jamais arriver ici si le bouton est actif
 
-    // --- 1. État de chargement ---
-    setLoadingState(true);
-
-    // --- 2. Extraction de la signature en base64 ---
-    const signatureBase64 = signaturePad.toDataURL('image/png');
-
-    // --- 3. Préparation du payload ---
-    const payload = {
-        devis: params.devis,
-        client: params.client,
-        email: params.email,
-        signature: signatureBase64,
-        timestamp: new Date().toISOString(),
-    };
+    setLoadingState(true, 'Initialisation...');
+    let signedPdfBase64 = null;
 
     try {
-        // --- 4. Envoi via fetch() ---
-        // IMPORTANT POUR GOOGLE APPS SCRIPT :
-        // - Content-Type: text/plain pour éviter les blocages CORS (preflight)
-        // - redirect: "follow" pour suivre les redirections GAS
+        // --- Étape 1 : Génération du PDF signé (si applicable) ---
+        if (params.pdf) {
+            signedPdfBase64 = await generateSignedPDF(params.pdf);
+        }
+
+        // --- Étape 2 : Préparation du payload ---
+        setLoadingState(true, 'Envoi de la signature...');
+        const signatureBase64 = signaturePad.toDataURL('image/png');
+
+        // Log de débogage pour la taille du PDF
+        console.log('[DEBUG] Taille de signedPdfBase64 :', signedPdfBase64 ? signedPdfBase64.length : 'null');
+
+        const payload = {
+            devis: params.devis,
+            client: params.client,
+            email: params.email,
+            signature: signatureBase64, // Signature brute (image)
+            signedPdfBase64: signedPdfBase64, // PDF complet signé (base64)
+            timestamp: new Date().toISOString(),
+        };
+
+        // --- Étape 3 : Envoi via fetch() ---
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -305,38 +370,233 @@ async function handleSubmit() {
             body: JSON.stringify(payload),
         });
 
-        // Lecture de la réponse
         const result = await response.json();
 
-        // --- 5. Gestion de la réponse ---
+        // --- Étape 4 : Gestion de la réponse ---
         if (result.status === 'error' && result.message === 'already_signed') {
-            // Le devis a été signé entre-temps → afficher l'alerte verte
             showAlreadySigned(params.devis);
         } else if (result.status === 'success' || response.ok) {
-            // Succès → Affichage du message de confirmation
             showSuccess(params.devis);
         } else {
             throw new Error(result.message || 'Erreur inconnue du serveur.');
         }
+
     } catch (error) {
-        console.error('Erreur lors de l\'envoi :', error);
-        alert('Une erreur est survenue lors de l\'envoi de votre signature. Veuillez réessayer.\n\nDétail : ' + error.message);
+        console.error('Erreur lors du processus de signature :', error);
+        alert('Une erreur est survenue lors de la signature. Veuillez réessayer.\n\nDétail : ' + error.message);
         setLoadingState(false);
     }
 }
 
+
+/**
+ * Orchestre le téléchargement, la modification et la sérialisation du PDF.
+ * @param {string} pdfId - L'ID Google Drive du fichier PDF.
+ * @returns {Promise<string|null>} Le PDF signé en base64, ou null en cas d'erreur.
+ */
+async function generateSignedPDF(pdfId) {
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    try {
+        // --- Étape 1: Téléchargement du PDF via Proxy GAS (Bypass CORS/Drive) ---
+        setLoadingState(true, 'Téléchargement du devis (via GAS)...');
+        const proxyUrl = `${API_URL}?getFile=${encodeURIComponent(pdfId)}`;
+
+        console.log(`[DEBUG] Tentative de téléchargement via GAS : ${proxyUrl}`);
+        const response = await fetch(proxyUrl);
+        const result = await response.json();
+
+        if (!response.ok || result.status !== 'success') {
+            throw new Error(`Le téléchargement via GAS a échoué : ${result.message || response.status}`);
+        }
+
+        // Conversion du Base64 reçu en ArrayBuffer
+        const binaryString = window.atob(result.base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        const pdfArrayBuffer = bytes.buffer;
+
+        console.log('PDF téléchargé et décodé avec succès via GAS.');
+
+        // --- Étape 2: Repérage des coordonnées avec pdf.js ---
+        setLoadingState(true, 'Analyse du document...');
+        // On passe une copie du buffer à pdf.js car il le "détache" (transfert) lors de l'analyse
+        const signatureCoords = await findSignatureCoords(pdfArrayBuffer.slice(0));
+        if (!signatureCoords) {
+            throw new Error("La zone de signature ('Signature du client :') n'a pas été trouvée dans le PDF.");
+        }
+        console.log('Coordonnées identifiées pour l\'incrustation:', signatureCoords);
+
+        // --- Étape 3: Incrustation avec pdf-lib ---
+        setLoadingState(true, 'Incrustation de la signature...');
+        const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
+
+        // Enregistrement de fontkit pour le support des polices personnalisées
+        pdfDoc.registerFontkit(window.fontkit);
+
+        const pages = pdfDoc.getPages();
+        const page = pages[signatureCoords.pageIndex];
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+
+        console.log(`[DEBUG] Page Size: ${pageWidth}x${pageHeight}, Index: ${signatureCoords.pageIndex}`);
+
+        // Préparation des contenus (Signature + Polices)
+        const signatureDataUri = signaturePad.toDataURL('image/png');
+
+        // Fix : Conversion Manuelle du Base64 en Uint8Array pour pdf-lib (plus fiable que fetch ou string direct)
+        const base64DataSig = signatureDataUri.split(',')[1];
+        const binaryStringSig = window.atob(base64DataSig);
+        const lenSig = binaryStringSig.length;
+        const bytesSig = new Uint8Array(lenSig);
+        for (let i = 0; i < lenSig; i++) {
+            bytesSig[i] = binaryStringSig.charCodeAt(i);
+        }
+
+        const signatureImage = await pdfDoc.embedPng(bytesSig);
+
+        // Téléchargement et intégration d'une police manuscrite
+        const fontBytes = await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/indieflower/IndieFlower-Regular.ttf').then(res => res.arrayBuffer());
+        const handFont = await pdfDoc.embedFont(fontBytes);
+        const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+        // Date du jour (JJ/MM/AAAA)
+        const today = new Date().toLocaleDateString('fr-FR');
+
+        // Récupération des coordonnées (X, Y) retournées par pdf.js
+        const { x, y } = signatureCoords;
+        console.log(`[DEBUG] Signature Placement - X: ${x}, Y: ${y}`);
+
+        // 1. Dessin du texte "Lu et approuvé, bon pour accord" avec la police manuscrite
+        page.drawText('Lu et approuvé, bon pour accord', {
+            x: x,
+            y: y + 25,
+            font: handFont,
+            size: 15, // Taille augmentée pour la police manuscrite
+            color: rgb(0.06, 0.09, 0.16), // #0f172a
+        });
+
+        // 2. Dessin de la date à côté de "Le :"
+        const dateX = signatureCoords.dateX || (x - 80);
+        const dateY = signatureCoords.dateY || y;
+        page.drawText(today, {
+            x: dateX + 25,
+            y: dateY,
+            font: helveticaFont,
+            size: 11,
+            color: rgb(0.06, 0.09, 0.16),
+        });
+
+        // 3. Dessin de l'image de la signature
+        const signatureWidth = 150;
+        const signatureHeight = 50;
+
+        console.log(`[DEBUG] Drawing Image at Y: ${y - signatureHeight - 5}`);
+
+        page.drawImage(signatureImage, {
+            x: x,
+            y: y - signatureHeight - 5, // Juste en-dessous du texte "Signature du client :"
+            width: signatureWidth,
+            height: signatureHeight,
+        });
+
+        console.log('PDF modifié avec succès.');
+
+        // --- Étape 4: Sérialisation ---
+        setLoadingState(true, 'Préparation de l\'envoi (Base64)...');
+        // On exporte le PDF en base64 pur (sans le préfixe data:application/pdf;base64,)
+        const pdfBase64 = await pdfDoc.saveAsBase64();
+        return pdfBase64;
+
+    } catch (error) {
+        console.error("%c[ERREUR PDF] Échec de la génération du PDF signé:", "color: red; font-weight: bold;", error);
+        // Retrait de l'alert() bloquante pour fluidifier l'expérience utilisateur
+        return null;
+    }
+}
+
+/**
+ * Utilise pdf.js pour trouver les coordonnées du texte "Signature du client :".
+ * @param {ArrayBuffer} pdfArrayBuffer - Le contenu du PDF.
+ * @returns {Promise<Object|null>} Un objet { pageIndex, x, y } ou null si non trouvé.
+ */
+async function findSignatureCoords(pdfArrayBuffer) {
+    try {
+        const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
+        const numPages = pdf.numPages;
+
+        // Mots-clés plus courts pour éviter les problèmes de découpage de texte (Text-Split)
+        const keywordSignature = "Signature";
+        const keywordDate = "Le :";
+
+        let result = {
+            pageIndex: -1,
+            x: 0,
+            y: 0,
+            dateX: null,
+            dateY: null
+        };
+
+        // On parcourt les pages (souvent vers la fin pour les signatures)
+        for (let i = 0; i < numPages; i++) {
+            const page = await pdf.getPage(i + 1);
+            const textContent = await page.getTextContent();
+
+            let foundInPage = false;
+
+            for (const item of textContent.items) {
+                const str = item.str.trim();
+
+                // Recherche robuste de la zone "Signature"
+                if (str.includes(keywordSignature) && result.pageIndex === -1) {
+                    result.pageIndex = i;
+                    result.x = item.transform[4];
+                    result.y = item.transform[5];
+                    foundInPage = true;
+                    console.log(`[DEBUG] Trouvé "${keywordSignature}" à la page ${i + 1} (X:${result.x}, Y:${result.y})`);
+                }
+
+                // Recherche robuste de la zone "Le :"
+                if (str.includes(keywordDate)) {
+                    result.dateX = item.transform[4];
+                    result.dateY = item.transform[5];
+                    console.log(`[DEBUG] Trouvé "${keywordDate}" à la page ${i + 1} (X:${result.dateX}, Y:${result.dateY})`);
+                }
+            }
+
+            // Si on a trouvé au moins la zone de signature, on peut s'arrêter (en supposant qu'elle est sur une seule page)
+            if (foundInPage) return result;
+        }
+
+        return null;
+    } catch (err) {
+        console.error("Erreur lors de l'analyse du PDF avec pdf.js :", err);
+        return null;
+    }
+}
+
+
 /**
  * Active ou désactive l'état de chargement du bouton principal.
  * @param {boolean} isLoading - true pour afficher le spinner.
+ * @param {string} [message='Envoi en cours...'] - Le message à afficher.
  */
-function setLoadingState(isLoading) {
+function setLoadingState(isLoading, message = 'Envoi en cours...') {
     if (isLoading) {
         elements.submitBtn.disabled = true;
-        elements.submitBtnText.textContent = 'Envoi en cours...';
+        elements.submitBtnText.textContent = message;
         elements.submitBtnSpinner.classList.remove('hidden');
+        // Désactiver aussi les autres interactions
+        elements.clearBtn.disabled = true;
+        elements.acceptCheckbox.disabled = true;
     } else {
         elements.submitBtnText.textContent = 'Valider et Signer';
         elements.submitBtnSpinner.classList.add('hidden');
+        // Réactiver les interactions
+        elements.clearBtn.disabled = false;
+        elements.acceptCheckbox.disabled = false;
         updateSubmitButton();
     }
 }
