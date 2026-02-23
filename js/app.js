@@ -142,6 +142,11 @@ async function initPage() {
         elements.downloadPdfBtn.href = 'https://drive.google.com/uc?export=download&id=' + params.pdf;
     }
 
+    // --- Révélation instantanée de la section TVA (Aucune attente réseau) ---
+    if (params.tva === '1' && elements.tvaSection) {
+        elements.tvaSection.classList.remove('hidden');
+    }
+
     // --- Vérification anti-double signature (appel GET) ---
     const alreadySigned = await checkAlreadySigned(params.devis);
     if (alreadySigned) {
@@ -164,13 +169,6 @@ async function initPage() {
     if (elements.stampBtn && elements.stampUpload) {
         elements.stampBtn.addEventListener('click', () => elements.stampUpload.click());
         elements.stampUpload.addEventListener('change', handleStampUpload);
-    }
-
-    // --- Vérification TVA réduite ---
-    if (params.tva === '1') {
-        if (elements.tvaSection) {
-            elements.tvaSection.classList.remove('hidden');
-        }
     }
 
     // Mise à jour initiale de l'état du bouton
@@ -603,44 +601,16 @@ async function findSignatureCoords(pdfArrayBuffer) {
                     console.log(`[DEBUG] Trouvé "Le :" à la page ${i + 1} (X:${result.dateX}, Y:${result.dateY})`);
                 }
 
-                // Recherche robuste de la mention TVA (gestion de la fragmentation pdf.js)
-                if (str.includes("Mention") && result.mentionPageIndex === -1) {
-                    let fullLine = str;
-                    // On agglomère les text items suivants pour reconstituer la phrase
-                    for (let k = 1; k < 10 && (j + k) < items.length; k++) {
-                        fullLine += " " + items[j + k].str.trim();
-                    }
+                // Recherche de la case TVA : "[  ]" ou "[]" 
+                // (Le devis a une case unique sous cette forme)
+                if ((str.includes("[") && str.includes("]")) && result.mentionPageIndex === -1) {
 
-                    if (fullLine.includes("obligatoire") || fullLine.includes("cocher") || fullLine.includes("TVA")) {
-                        // On trouve la position X exacte de "[ ]" 
-                        // En général, le PDF imprime d'abord "[ ]" puis "Mention"
-                        // On parcourt les éléments précédents pour trouver le crochet ouvrant
-                        let base_x = items[j].transform[4];
-                        let foundBracket = false;
-
-                        // Chercher en arrière sur la même ligne
-                        for (let b = 1; b <= 5 && (j - b) >= 0; b++) {
-                            const prevItem = items[j - b];
-                            // Si sur la même ligne Y (à 5px près) et contenant [
-                            if (Math.abs(prevItem.transform[5] - items[j].transform[5]) < 5 && prevItem.str.includes("[")) {
-                                base_x = prevItem.transform[4];
-                                foundBracket = true;
-                                break;
-                            }
-                        }
-
-                        // Ajustement de la croix : si on a trouvé les crochets, on décale légèrement à droite pour centrer.
-                        // Sinon on recule par rapport à "Mention".
-                        if (foundBracket) {
-                            result.mentionX = base_x + 8.5; // Centre de [  ] (affiné)
-                        } else {
-                            result.mentionX = base_x - 17; // Recul fixe par rapport au M de Mention
-                        }
-
-                        result.mentionY = items[j].transform[5];
-                        result.mentionPageIndex = i;
-                        console.log(`[DEBUG] Trouvé "Mention TVA" à la page ${i + 1} (X ajusté:${result.mentionX}, Y:${result.mentionY})`);
-                    }
+                    // On prend la coordonnée X du caractère `[`
+                    // Si on a directement "[  ]", on décale simplement de quelques pixels pour centrer le X
+                    result.mentionX = items[j].transform[4] + 8.5;
+                    result.mentionY = items[j].transform[5];
+                    result.mentionPageIndex = i;
+                    console.log(`[DEBUG] Trouvé case TVA "[]" à la page ${i + 1} (X:${result.mentionX}, Y:${result.mentionY})`);
                 }
             }
         }
