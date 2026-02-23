@@ -11,7 +11,7 @@ async function extractItems() {
         const items = textContent.items;
 
         for (let j = 0; j < items.length; j++) {
-            if (items[j].str.includes('Mention')) {
+            if (items[j].str.includes('Mention') || items[j].str.includes('[')) {
                 console.log(`Page ${i}, Item ${j}: "${items[j].str}" at X: ${items[j].transform[4]}, Y: ${items[j].transform[5]}`);
                 for (let k = Math.max(0, j - 10); k < Math.min(items.length, j + 5); k++) {
                     console.log(`  [${k}]: "${items[k].str}" at X: ${items[k].transform[4]}, Y: ${items[k].transform[5]}`);

@@ -527,10 +527,10 @@ async function generateSignedPDF(pdfId) {
         if (elements.tvaCheckbox && elements.tvaCheckbox.checked && signatureCoords.mentionX !== null && signatureCoords.mentionPageIndex !== -1) {
             const mentionPage = pages[signatureCoords.mentionPageIndex];
             mentionPage.drawText('X', {
-                x: signatureCoords.mentionX, // Plus de décalage fixe ici, tout est géré en amont
-                y: signatureCoords.mentionY + 1.5, // Ajustement vertical pour mieux centrer dans la case
+                x: signatureCoords.mentionX,
+                y: signatureCoords.mentionY, // Déjà ajusté lors de l'analyse
                 font: helveticaFont,
-                size: 11, // Taille légèrement réduite pour bien entrer dans la boîte
+                size: 11,
                 color: rgb(0.06, 0.09, 0.16)
             });
             console.log(`[DEBUG] Croix de TVA dessinée à X:${signatureCoords.mentionX}, Y:${signatureCoords.mentionY}`);
@@ -606,9 +606,9 @@ async function findSignatureCoords(pdfArrayBuffer) {
                 if ((str.includes("[") && str.includes("]")) && result.mentionPageIndex === -1) {
 
                     // On prend la coordonnée X du caractère `[`
-                    // Si on a directement "[  ]", on décale simplement de quelques pixels pour centrer le X
-                    result.mentionX = items[j].transform[4] + 8.5;
-                    result.mentionY = items[j].transform[5];
+                    // Si on a directement "[  ]", on décale légèrement (env. 4.5px) pour centrer le X
+                    result.mentionX = items[j].transform[4] + 4.5;
+                    result.mentionY = items[j].transform[5] + 1;
                     result.mentionPageIndex = i;
                     console.log(`[DEBUG] Trouvé case TVA "[]" à la page ${i + 1} (X:${result.mentionX}, Y:${result.mentionY})`);
                 }
