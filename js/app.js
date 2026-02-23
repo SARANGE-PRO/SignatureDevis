@@ -530,7 +530,7 @@ async function generateSignedPDF(pdfId) {
                 x: signatureCoords.mentionX,
                 y: signatureCoords.mentionY, // Déjà ajusté lors de l'analyse
                 font: helveticaFont,
-                size: 10,
+                size: 9, // Encore réduit pour passer entre les crochets
                 color: rgb(0.06, 0.09, 0.16)
             });
             console.log(`[DEBUG] Croix de TVA dessinée à X:${signatureCoords.mentionX}, Y:${signatureCoords.mentionY}`);
@@ -607,8 +607,8 @@ async function findSignatureCoords(pdfArrayBuffer) {
 
                     // On prend la coordonnée X du caractère `[`
                     // On prend la coordonnée X du caractère `[`
-                    // 3.5px était trop à gauche, 8.5px trop à droite. Le milieu exact est à 6px.
-                    result.mentionX = items[j].transform[4] + 6;
+                    // X à +4.5 touchait presque le `[`, X à +6 touche le `]`. Le centre parfait est ~+5.25.
+                    result.mentionX = items[j].transform[4] + 5.25;
                     result.mentionY = items[j].transform[5];
                     result.mentionPageIndex = i;
                     console.log(`[DEBUG] Trouvé case TVA "[]" à la page ${i + 1} (X:${result.mentionX}, Y:${result.mentionY})`);
