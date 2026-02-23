@@ -146,6 +146,7 @@ function sendQuoteEmail(data, pdfBlob, signatureLink) {
     replyTo: CONFIG.INTERNAL_EMAIL
   };
 
+  if (data.cc) options.cc = data.cc;
   if (pdfBlob) options.attachments = [pdfBlob];
   MailApp.sendEmail(options);
 }
@@ -483,6 +484,7 @@ function handleAdminDevis(data) {
       devis: data.devis || '',
       name: data.client || '',
       email: data.email || '',
+      cc: data.cc || '',
     }, pdfBlob, signatureLink);
 
   } catch (e) {

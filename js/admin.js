@@ -54,6 +54,9 @@ function cacheDom() {
         fieldDevis: document.getElementById('field-devis'),
         fieldClient: document.getElementById('field-client'),
         fieldEmail: document.getElementById('field-email'),
+        fieldCc: document.getElementById('field-cc'),
+        groupCc: document.getElementById('group-cc'),
+        btnToggleCc: document.getElementById('btn-toggle-cc'),
         fieldTotal: document.getElementById('field-total'),
         fieldAddress: document.getElementById('field-address'),
         btnSend: document.getElementById('btn-send'),
@@ -364,6 +367,7 @@ async function handleSend() {
             devis: dom.fieldDevis.value.trim(),
             client: dom.fieldClient.value.trim(),
             email: dom.fieldEmail.value.trim(),
+            cc: dom.fieldCc.value.trim(),
             fileId: fileId,
             driveUrl: driveUrl,
             totalTTC: totalTTC,
@@ -451,6 +455,8 @@ function resetAll() {
     dom.fieldDevis.value = '';
     dom.fieldClient.value = '';
     dom.fieldEmail.value = '';
+    dom.fieldCc.value = '';
+    dom.groupCc.classList.add('hidden');
     dom.fieldTotal.value = '';
     dom.fieldAddress.value = '';
     tvaReducedGlobal = false;
@@ -469,6 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ['field-devis', 'field-client', 'field-email'].forEach(id => {
         document.getElementById(id).addEventListener('input', updateSendButton);
+    });
+
+    dom.btnToggleCc.addEventListener('click', () => {
+        dom.groupCc.classList.toggle('hidden');
     });
 
     dom.btnSend.addEventListener('click', handleSend);
