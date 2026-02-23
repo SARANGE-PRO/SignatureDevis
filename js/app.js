@@ -606,9 +606,9 @@ async function findSignatureCoords(pdfArrayBuffer) {
                 if ((str.includes("[") && str.includes("]")) && result.mentionPageIndex === -1) {
 
                     // On prend la coordonnée X du caractère `[`
-                    // Si on a directement "[  ]", on décale légèrement (env. 4.5px) pour centrer le X
-                    result.mentionX = items[j].transform[4] + 4.5;
-                    result.mentionY = items[j].transform[5] + 1;
+                    // Si on a directement "[  ]", on décale légèrement (env. 3.5px) pour centrer le X
+                    result.mentionX = items[j].transform[4] + 3.5;
+                    result.mentionY = items[j].transform[5] + 0.5;
                     result.mentionPageIndex = i;
                     console.log(`[DEBUG] Trouvé case TVA "[]" à la page ${i + 1} (X:${result.mentionX}, Y:${result.mentionY})`);
                 }
