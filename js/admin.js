@@ -40,6 +40,7 @@ let googleAccessToken = null;
 // ============================================================
 
 let dom = {};
+let tvaReducedGlobal = false;
 
 function cacheDom() {
     dom = {
@@ -65,6 +66,7 @@ function cacheDom() {
         errorText: document.getElementById('error-text'),
         driveStatusText: document.getElementById('drive-status-text'),
         rawTextDebug: document.getElementById('raw-text-debug'),
+        tvaBadge: document.getElementById('tva-badge'),
         btnGoogleSignin: document.getElementById('btn-google-signin'),
         googleUserInfo: document.getElementById('google-user-info'),
     };
@@ -294,6 +296,11 @@ async function handleFile(file) {
         dom.fieldTotal.value = info.totalTTC ? info.totalTTC + ' €' : '';
         dom.fieldAddress.value = info.address || '';
 
+        tvaReducedGlobal = info.tvaReduced;
+        if (dom.tvaBadge) {
+            dom.tvaBadge.style.display = tvaReducedGlobal ? 'inline-flex' : 'none';
+        }
+
         if (dom.rawTextDebug) {
             dom.rawTextDebug.textContent = fullText.substring(0, 2000);
         }
@@ -360,6 +367,7 @@ async function handleSend() {
             fileId: fileId,
             driveUrl: driveUrl,
             totalTTC: totalTTC,
+            tvaReduced: tvaReducedGlobal,
         };
 
         console.log('📤 Envoi vers GAS :', payload);
@@ -445,6 +453,8 @@ function resetAll() {
     dom.fieldEmail.value = '';
     dom.fieldTotal.value = '';
     dom.fieldAddress.value = '';
+    tvaReducedGlobal = false;
+    if (dom.tvaBadge) dom.tvaBadge.style.display = 'none';
     if (dom.rawTextDebug) dom.rawTextDebug.textContent = '';
 }
 

@@ -47,7 +47,7 @@ class QuoteParserService {
      *   "MONTANT TOTAL T.T.C.  XX XXX,XX €"
      */
     extractClientInfo(text) {
-        const info = { number: "", name: "", address: "", email: "", totalTTC: "", date: "" };
+        const info = { number: "", name: "", address: "", email: "", totalTTC: "", date: "", tvaReduced: false };
 
         // --- N° Devis ---
         const numberMatch = text.match(/Devis\s*N[°o.\s]*\s*0*(\d{4,6})/i);
@@ -85,6 +85,11 @@ class QuoteParserService {
         // --- Date du devis ---
         const dateMatch = text.match(/LE\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
         if (dateMatch) info.date = dateMatch[1];
+
+        // --- Détection TVA Réduite (5.5% ou 10%) ---
+        if (/T\.V\.A\.\s*à\s*(5,50?|10,00?)\s*%/i.test(text)) {
+            info.tvaReduced = true;
+        }
 
         return info;
     }

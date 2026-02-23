@@ -476,7 +476,8 @@ function handleAdminDevis(data) {
       '?devis=' + encodeURIComponent(data.devis || '') +
       '&client=' + encodeURIComponent(data.client || '') +
       '&email=' + encodeURIComponent(data.email || '') +
-      (fileId ? '&pdf=' + encodeURIComponent(fileId) : '');
+      (fileId ? '&pdf=' + encodeURIComponent(fileId) : '') +
+      (typeof data.tvaReduced !== 'undefined' ? (data.tvaReduced ? '&tva=1' : '&tva=0') : '');
 
     sendQuoteEmail({
       devis: data.devis || '',

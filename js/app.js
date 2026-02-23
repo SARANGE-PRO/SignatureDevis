@@ -40,13 +40,14 @@ function getUrlParams() {
     const client = params.get('client');
     const email = params.get('email');
     const pdf = params.get('pdf'); // Optionnel — ID Google Drive du PDF
+    const tva = params.get('tva'); // Optionnel — 1 si TVA réduite
 
     // Vérifie que les trois paramètres obligatoires sont présents
     if (!devis || !client || !email) {
         return null;
     }
 
-    return { devis, client, email, pdf };
+    return { devis, client, email, pdf, tva };
 }
 
 // ============================================================
@@ -105,6 +106,8 @@ async function initPage() {
         signatureCanvas: document.getElementById('signature-canvas'),
         canvasPlaceholder: document.getElementById('canvas-placeholder'),
         acceptCheckbox: document.getElementById('accept-checkbox'),
+        tvaSection: document.getElementById('tva-section'),
+        tvaCheckbox: document.getElementById('tva-checkbox'),
         submitBtn: document.getElementById('submit-btn'),
         submitBtnText: document.getElementById('submit-btn-text'),
         submitBtnSpinner: document.getElementById('submit-btn-spinner'),
@@ -151,6 +154,9 @@ async function initPage() {
 
     // Écoute des interactions : checkbox, bouton effacer, bouton valider
     elements.acceptCheckbox.addEventListener('change', updateSubmitButton);
+    if (elements.tvaCheckbox) {
+        elements.tvaCheckbox.addEventListener('change', updateSubmitButton);
+    }
     elements.clearBtn.addEventListener('click', handleClear);
     elements.submitBtn.addEventListener('click', handleSubmit);
 
@@ -158,6 +164,13 @@ async function initPage() {
     if (elements.stampBtn && elements.stampUpload) {
         elements.stampBtn.addEventListener('click', () => elements.stampUpload.click());
         elements.stampUpload.addEventListener('change', handleStampUpload);
+    }
+
+    // --- Vérification TVA réduite ---
+    if (params.tva === '1') {
+        if (elements.tvaSection) {
+            elements.tvaSection.classList.remove('hidden');
+        }
     }
 
     // Mise à jour initiale de l'état du bouton
@@ -250,10 +263,20 @@ function resizeCanvas() {
 function updateSubmitButton() {
     if (!signaturePad || !elements.submitBtn) return;
 
+    // Wait until initialization is fully complete (prevents enabling during checkTvaReduced)
+    if (!elements.submitBtnSpinner.classList.contains('hidden')) {
+        return;
+    }
+
     const isChecked = elements.acceptCheckbox.checked;
     const hasSigned = !signaturePad.isEmpty() || hasStamp;
 
-    elements.submitBtn.disabled = !(isChecked && hasSigned);
+    let tvaValid = true;
+    if (elements.tvaSection && !elements.tvaSection.classList.contains('hidden')) {
+        tvaValid = elements.tvaCheckbox && elements.tvaCheckbox.checked;
+    }
+
+    elements.submitBtn.disabled = !(isChecked && hasSigned && tvaValid);
 }
 
 /**
@@ -502,6 +525,19 @@ async function generateSignedPDF(pdfId) {
             height: signatureHeight,
         });
 
+        // 4. Dessin de la croix TVA si applicable
+        if (elements.tvaCheckbox && elements.tvaCheckbox.checked && signatureCoords.mentionX !== null && signatureCoords.mentionPageIndex !== -1) {
+            const mentionPage = pages[signatureCoords.mentionPageIndex];
+            mentionPage.drawText('X', {
+                x: signatureCoords.mentionX, // Plus de décalage fixe ici, tout est géré en amont
+                y: signatureCoords.mentionY + 1.5, // Ajustement vertical pour mieux centrer dans la case
+                font: helveticaFont,
+                size: 11, // Taille légèrement réduite pour bien entrer dans la boîte
+                color: rgb(0.06, 0.09, 0.16)
+            });
+            console.log(`[DEBUG] Croix de TVA dessinée à X:${signatureCoords.mentionX}, Y:${signatureCoords.mentionY}`);
+        }
+
         console.log('PDF modifié avec succès.');
 
         // --- Étape 4: Sérialisation ---
@@ -530,46 +566,86 @@ async function findSignatureCoords(pdfArrayBuffer) {
         // Mots-clés plus courts pour éviter les problèmes de découpage de texte (Text-Split)
         const keywordSignature = "Signature";
         const keywordDate = "Le :";
+        const keywordMention = "Mention obligatoire à cocher";
 
         let result = {
             pageIndex: -1,
             x: 0,
             y: 0,
             dateX: null,
-            dateY: null
+            dateY: null,
+            mentionX: null,
+            mentionY: null,
+            mentionPageIndex: -1
         };
 
-        // On parcourt les pages (souvent vers la fin pour les signatures)
         for (let i = 0; i < numPages; i++) {
             const page = await pdf.getPage(i + 1);
             const textContent = await page.getTextContent();
+            const items = textContent.items;
 
-            let foundInPage = false;
-
-            for (const item of textContent.items) {
-                const str = item.str.trim();
+            for (let j = 0; j < items.length; j++) {
+                const str = items[j].str.trim();
+                if (!str) continue;
 
                 // Recherche robuste de la zone "Signature"
                 if (str.includes(keywordSignature) && result.pageIndex === -1) {
                     result.pageIndex = i;
-                    result.x = item.transform[4];
-                    result.y = item.transform[5];
-                    foundInPage = true;
-                    console.log(`[DEBUG] Trouvé "${keywordSignature}" à la page ${i + 1} (X:${result.x}, Y:${result.y})`);
+                    result.x = items[j].transform[4];
+                    result.y = items[j].transform[5];
+                    console.log(`[DEBUG] Trouvé "Signature" à la page ${i + 1} (X:${result.x}, Y:${result.y})`);
                 }
 
                 // Recherche robuste de la zone "Le :"
                 if (str.includes(keywordDate)) {
-                    result.dateX = item.transform[4];
-                    result.dateY = item.transform[5];
-                    console.log(`[DEBUG] Trouvé "${keywordDate}" à la page ${i + 1} (X:${result.dateX}, Y:${result.dateY})`);
+                    result.dateX = items[j].transform[4];
+                    result.dateY = items[j].transform[5];
+                    console.log(`[DEBUG] Trouvé "Le :" à la page ${i + 1} (X:${result.dateX}, Y:${result.dateY})`);
+                }
+
+                // Recherche robuste de la mention TVA (gestion de la fragmentation pdf.js)
+                if (str.includes("Mention") && result.mentionPageIndex === -1) {
+                    let fullLine = str;
+                    // On agglomère les text items suivants pour reconstituer la phrase
+                    for (let k = 1; k < 10 && (j + k) < items.length; k++) {
+                        fullLine += " " + items[j + k].str.trim();
+                    }
+
+                    if (fullLine.includes("obligatoire") || fullLine.includes("cocher") || fullLine.includes("TVA")) {
+                        // On trouve la position X exacte de "[ ]" 
+                        // En général, le PDF imprime d'abord "[ ]" puis "Mention"
+                        // On parcourt les éléments précédents pour trouver le crochet ouvrant
+                        let base_x = items[j].transform[4];
+                        let foundBracket = false;
+
+                        // Chercher en arrière sur la même ligne
+                        for (let b = 1; b <= 5 && (j - b) >= 0; b++) {
+                            const prevItem = items[j - b];
+                            // Si sur la même ligne Y (à 5px près) et contenant [
+                            if (Math.abs(prevItem.transform[5] - items[j].transform[5]) < 5 && prevItem.str.includes("[")) {
+                                base_x = prevItem.transform[4];
+                                foundBracket = true;
+                                break;
+                            }
+                        }
+
+                        // Ajustement de la croix : si on a trouvé les crochets, on décale légèrement à droite pour centrer.
+                        // Sinon on recule par rapport à "Mention".
+                        if (foundBracket) {
+                            result.mentionX = base_x + 8.5; // Centre de [  ] (affiné)
+                        } else {
+                            result.mentionX = base_x - 17; // Recul fixe par rapport au M de Mention
+                        }
+
+                        result.mentionY = items[j].transform[5];
+                        result.mentionPageIndex = i;
+                        console.log(`[DEBUG] Trouvé "Mention TVA" à la page ${i + 1} (X ajusté:${result.mentionX}, Y:${result.mentionY})`);
+                    }
                 }
             }
-
-            // Si on a trouvé au moins la zone de signature, on peut s'arrêter (en supposant qu'elle est sur une seule page)
-            if (foundInPage) return result;
         }
 
+        if (result.pageIndex !== -1) return result;
         return null;
     } catch (err) {
         console.error("Erreur lors de l'analyse du PDF avec pdf.js :", err);
