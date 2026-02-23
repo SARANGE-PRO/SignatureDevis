@@ -1,6 +1,6 @@
 # ARCHITECTURE.MD — SignatureDevis (Sarange)
 
-> **Version :** 1.0 — 21 février 2026  
+> **Version :** 1.1 — 23 février 2026  
 > **Auteur :** Documentation technique auto-générée  
 > **Audience :** Tout développeur rejoignant le projet
 
@@ -12,8 +12,8 @@
 
 **SignatureDevis** est un outil interne de **SARANGE** (fabricant de menuiseries sur mesure) permettant :
 
-1. **Côté Admin** — D'extraire les informations d'un devis PDF, de l'uploader sur Google Drive, d'enregistrer les métadonnées dans un Google Sheet, et d'envoyer un e-mail de signature au client.
-2. **Côté Client** — De consulter son devis en ligne, de le signer électroniquement via un pad tactile, et de recevoir une confirmation par e-mail.
+1. **Côté Admin** — D'extraire les informations d'un devis PDF (y compris la détection du taux de TVA réduit), de l'uploader sur Google Drive, d'enregistrer les métadonnées dans un Google Sheet, et d'envoyer un e-mail de signature au client.
+2. **Côté Client** — De consulter son devis en ligne via une liseuse intégrée (iframe), de le télécharger, de le signer électroniquement via un pad tactile ou l'import d'un cachet d'entreprise, de cocher potentiellement une attestation de TVA réduite, et de recevoir une confirmation par e-mail.
 
 ### Stack technologique
 
@@ -23,7 +23,7 @@
 | **PDF Gen/Mod**| [pdf-lib](https://pdf-lib.js.org/) v1.17.1 (chargé via CDN)                                        |
 | **PDF Parse**  | [pdf.js](https://mozilla.github.io/pdf.js/) v3.11.174 (chargé dynamiquement via CDN)              |
 | **Signature**  | [signature_pad](https://github.com/nicejslab/signature_pad) v4.2.0 (CDN)                          |
-| **Proxy CORS** | [corsproxy.io](https://corsproxy.io/) (pour le téléchargement du PDF original)                     |
+| **Proxy CORS** | Google Apps Script (téléchargement Base64 bypassant les blocages CORS et auth natifs)              |
 | **Auth**       | Google Identity Services (GIS) — OAuth 2.0 Token Flow (scope `drive.file`)                         |
 | **Backend**    | Google Apps Script (GAS) déployé en Web App                                                        |
 | **Stockage**   | Google Sheets (base de données), Google Drive (PDFs), Gmail (emails transactionnels via `MailApp`) |
@@ -67,7 +67,9 @@
 │    └─ (signature)  → Sheet "Signatures".appendRow()               │
 │                    → MailApp (confirmation client + notif interne)│
 │                                                                   │
-│  doGet(?check=XXXX) → vérifie si devis déjà signé                │
+│  doGet()                                                          │
+│    ├─ ?check=XXXX     → vérifie si devis déjà signé               │
+│    └─ ?getFile=FILEID → télécharge et renvoie le PDF en Base64    │
 └────────────┬──────────────────────────────────────────────────────┘
              │
              ▼
@@ -124,12 +126,12 @@ SignatureDevis/
 | Fichier                    | Rôle                                                                                                 |
 | -------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `index.html`               | Page publique envoyée au client par e-mail. Affiche le devis PDF (iframe Google Drive) et le pad de signature. |
-| `admin.html`               | Interface interne permettant de glisser-déposer un PDF de devis, d'en extraire les données, puis de les envoyer vers le système. |
+| `admin.html`               | Interface interne permettant de glisser-déposer un PDF de devis, d'en extraire les données (y compris la mention TVA), puis de les envoyer vers le système. |
 | `brandsarange.html`        | Page de référence design (Brand Board) : logotypes, couleurs, typographie, composants UI. Non fonctionnelle, usage interne. |
-| `js/app.js`                | Point d'entrée de la page client. Gère le parsing d'URL, l'anti-double signature, le pad et l'envoi de la signature. |
+| `js/app.js`                | Point d'entrée de la page client. Gère le parsing d'URL, l'anti-double signature, l'upload de cachet, le pad et l'envoi de la signature. |
 | `js/admin.js`              | Point d'entrée de la page admin. Gère le drag & drop, l'OAuth Google, l'upload Drive et l'envoi vers GAS. |
-| `QuoteParserService.js`    | Classe `QuoteParserService` : charge pdf.js dynamiquement, extrait N° devis, nom, email, adresse, total TTC via regex. |
-| `gas-handler-admin.js`     | **Code serveur** (Google Apps Script). Contient `doGet`, `doPost`, `handleAdminDevis`, `sendQuoteEmail`, et les templates d'e-mails HTML. |
+| `QuoteParserService.js`    | Classe `QuoteParserService` : charge pdf.js dynamiquement, extrait N° devis, nom, email, adresse, total TTC et détection de TVA réduite. |
+| `gas-handler-admin.js`     | **Code serveur** (Google Apps Script). Contient `doGet` (vérification signature / proxy PDF), `doPost`, `handleAdminDevis`, `sendQuoteEmail`, et les templates d'e-mails HTML. |
 | `css/style.css`            | Variables CSS Sarange, composants signature (canvas, boutons, états succès/erreur), layout responsive 2 colonnes. |
 | `css/admin.css`            | Variables CSS, thème sombre avec glassmorphism, dropzone animée, formulaire d'extraction, bannières. |
 
@@ -150,7 +152,7 @@ sequenceDiagram
 
     A->>A: Glisser-déposer le PDF du devis
     A->>P: handleFile() → parser.init() + extractClientInfo()
-    P-->>A: { number, name, email, address, totalTTC }
+    P-->>A: { number, name, email, address, totalTTC, tvaReduced }
     Note over A: L'admin vérifie et corrige les champs si besoin
 
     A->>A: Clic "Envoyer vers Sheet + Mail"
@@ -159,9 +161,9 @@ sequenceDiagram
     GD-->>A: { fileId, webViewLink }
     A->>GD: Ajout permission "anyone:reader" sur le fichier
 
-    A->>GAS: POST { action:"admin_devis", devis, client, email, fileId, driveUrl, totalTTC }
+    A->>GAS: POST { action:"admin_devis", devis, client, email, fileId, driveUrl, totalTTC, tvaReduced }
     GAS->>GS: appendRow() dans l'onglet "Réponses au formulaire 1"
-    GAS->>GAS: Compose le lien de signature avec les paramètres
+    GAS->>GAS: Compose le lien de signature avec les paramètres (+ paramètre &tva=1|0)
     GAS->>GM: sendQuoteEmail() → email au client avec lien + PDF en PJ
     GAS-->>A: { status:"success", driveUrl }
 ```
@@ -170,12 +172,12 @@ sequenceDiagram
 
 1. L'admin dépose un PDF dans la dropzone de `admin.html`.
 2. `admin.js` invoque `QuoteParserService.init()` pour charger pdf.js, puis extrait le texte page par page.
-3. `extractClientInfo()` utilise des regex pour trouver le N° de devis, le nom client, l'email, l'adresse et le total TTC.
-4. Les champs sont pré-remplis et éditables par l'admin.
+3. `extractClientInfo()` utilise des regex pour trouver le N° de devis, le nom client, l'email, l'adresse, le total TTC, et la détection d'une mention TVA réduite.
+4. Les champs (et le badge d'alerte TVA) sont affichés et éditables par l'admin.
 5. Au clic sur "Envoyer", le PDF est uploadé directement sur Google Drive via l'API REST (pas via GAS).
 6. Le fichier est rendu accessible en lecture à quiconque possède le lien.
 7. Un POST est envoyé au GAS avec les métadonnées + l'ID du fichier Drive.
-8. Le GAS écrit dans le Sheet et envoie l'e-mail de signature au client.
+8. Le GAS écrit dans le Sheet, construit l'URL de la liseuse (avec ou sans le paramètre `tva=1`), et envoie l'e-mail de signature au client.
 
 ### 3.2 — Flux Client : Signature du devis
 
@@ -187,23 +189,23 @@ sequenceDiagram
     participant GM as Gmail
 
     C->>C: Ouverture du lien reçu par email
-    Note over C: URL: ?devis=XXXX&client=NOM&email=xxx@xxx.com&pdf=FILE_ID
+    Note over C: URL: ?devis=XXXX&client=NOM&email=xxx@xxx.com&pdf=FILE_ID&tva=1
 
-    C->>C: getUrlParams() — extraction des paramètres
+    C->>C: getUrlParams() — extraction des paramètres (affiche case TVA si requise)
     C->>GAS: GET ?check=XXXX — vérification anti-double signature
     GAS-->>C: { signed: false }
 
     C->>C: Affichage du devis PDF (iframe Google Drive preview)
-    C->>C: Le client signe sur le canvas (SignaturePad)
-    C->>C: Coche "Je certifie avoir pris connaissance..."
+    C->>C: Le client signe sur le canvas ou importe un cachet entreprise
+    C->>C: Coche les mentions légales obligatoires
 
     C->>C: Clic "Valider et Signer"
     
     rect rgb(240, 240, 240)
     Note right of C: Processus de génération du PDF Signé
-    C->>C: fetch(corsproxy.io + driveUrl) → ArrayBuffer
-    C->>C: pdf.js -> findSignatureCoords() (repère "Signature du client :")
-    C->>C: pdf-lib -> generateSignedPDF() (incruste mention, date et image)
+    C->>C: fetch(GAS + ?getFile=...) → proxy GAS renvoie Base64 → décodage ArrayBuffer
+    C->>C: pdf.js -> findSignatureCoords() (repère Signature, Date, et crochets "[  ]")
+    C->>C: pdf-lib -> generateSignedPDF() (incruste mention, date, croix TVA précise, signature)
     C->>C: pdfDoc.saveAsBase64() → signedPdfBase64
     end
 
@@ -223,13 +225,13 @@ sequenceDiagram
 
 ### 4.1 — QuoteParserService (`QuoteParserService.js`)
 
-Service de parsing de PDF côté navigateur.
+Service de parsing de PDF côté navigateur localisé exclusivement au panel admin.
 
 | Méthode                    | Rôle                                                                                      |
 | -------------------------- | ----------------------------------------------------------------------------------------- |
 | `init()`                   | Charge pdf.js via injection dynamique de `<script>` si non déjà chargé.                   |
 | `_loadScript(url)`         | Helper : injecte un `<script>` dans le `<head>` et retourne une Promise.                  |
-| `extractClientInfo(text)`  | Analyse le texte brut du PDF via regex et retourne `{ number, name, email, address, totalTTC, date }`. |
+| `extractClientInfo(text)`  | Analyse le texte brut du PDF via regex et retourne `{ number, name, email, address, totalTTC, date, tvaReduced }`. |
 
 **Stratégie d'extraction :**
 
@@ -245,6 +247,7 @@ Texte brut du PDF Sarange :
   Mail client : xxx@xxx.com       ← Regex : /Mail\s+client\s*:\s*(email)/i
   ...
   MONTANT TOTAL T.T.C. 35 207,10  ← Regex : /MONTANT\s+TOTAL\s+T\.?T\.?C\.?\s*(montant)/i
+  Mention obligatoire à cocher... ← Regex de détection du mot-clé de TVA pour marquer la facturation réduite.
 ```
 
 ### 4.2 — Page Client — app.js (`js/app.js`)
@@ -253,13 +256,13 @@ Point d'entrée : `DOMContentLoaded → initPage()`
 
 | Fonction              | Rôle                                                                                         |
 | --------------------- | -------------------------------------------------------------------------------------------- |
-| `getUrlParams()`      | Extrait `devis`, `client`, `email`, `pdf` depuis `window.location.search`.                    |
+| `getUrlParams()`      | Extrait `devis`, `client`, `email`, `pdf`, `tva` depuis `window.location.search`.                    |
 | `checkAlreadySigned()` | Appel GET vers le GAS pour vérifier si le devis est déjà signé.                              |
 | `initSignaturePad()`  | Initialise `SignaturePad` avec gestion du `devicePixelRatio` pour rendu Retina.               |
 | `resizeCanvas()`      | Gère le redimensionnement responsif du canvas (efface le contenu).                            |
-| `updateSubmitButton()` | Active le bouton uniquement si la case est cochée ET le canvas non vide.                     |
-| `generateSignedPDF()` | Orchestre le téléchargement, la modification (pdf-lib) et la sérialisation du PDF. |
-| `findSignatureCoords()` | Analyse le PDF (pdf.js) pour trouver les coordonnées de "Signature du client :".    |
+| `updateSubmitButton()` | Active le bouton uniquement si la(les) case(s) est/sont cochée(s) ET le canvas (ou cachet) non vide.                     |
+| `generateSignedPDF()` | Orchestre le téléchargement via proxy, la modification (pdf-lib) et la sérialisation du PDF. |
+| `findSignatureCoords()` | Analyse mathématique du PDF (pdf.js) pour trouver les coordonnées visuelles de "Signature du client :", "Le :" et des crochets TVA temporels `[  ]`.    |
 | `handleSubmit()`        | Gère le clic : génération du PDF signed, puis envoi du payload complet au GAS.      |
 | `showSuccess()`         | Masque le formulaire, affiche le message de confirmation.                           |
 | `showAlreadySigned()`   | Affiche le bloc "déjà signé" si le devis a déjà été signé.                          |
@@ -271,7 +274,7 @@ Point d'entrée : `DOMContentLoaded → initPage()`
                  │  URL invalide │──── Pas de params → error-zone
                  └──────────────┘
                         │
-                   params OK
+                   params OK (tva révélée si tva=1)
                         │
                  ┌──────▼──────┐
                  │ Check signé │──── GET ?check=XXXX
@@ -301,7 +304,7 @@ Point d'entrée : `DOMContentLoaded → cacheDom() + initDropzone() + initGoogle
 | `initDropzone()`      | Gestion drag & drop + input file.                                                             |
 | `handleFile()`        | Lecture du PDF via pdf.js, extraction du texte, appel à `extractClientInfo()`.                |
 | `handleSend()`        | Orchestrateur principal : token → upload Drive → POST vers GAS → affichage résultat.         |
-| `updateSendButton()`  | Validation : le bouton est actif ssi les 3 champs obligatoires (devis, client, email) sont remplis. |
+| `updateSendButton()`  | Validation dynamique : actif sous condition des 3 champs (devis, client, email). |
 
 ### 4.4 — Backend GAS (`gas-handler-admin.js`)
 
@@ -309,9 +312,9 @@ Point d'entrée : `DOMContentLoaded → cacheDom() + initDropzone() + initGoogle
 
 | Fonction               | Déclencheur         | Rôle                                                                          |
 | ---------------------- | -------------------- | ----------------------------------------------------------------------------- |
-| `doGet(e)`             | HTTP GET             | Si `?check=XXXX` → vérifie dans l'onglet "Signatures" si le devis est signé. |
+| `doGet(e)`             | HTTP GET             | Proxy : route vers `?check=XXXX` (signature) et `?getFile=ID` (PDF Drive CORS). |
 | `doPost(e)`            | HTTP POST            | Routeur : dispatch vers `handleAdminDevis()` ou le handler de signature.      |
-| `handleAdminDevis()`   | `action=admin_devis` | Écrit dans le Sheet + envoie l'email de signature au client.                  |
+| `handleAdminDevis()`   | `action=admin_devis` | Écrit dans le Sheet + envoie l'email de signature au client (avec lien).      |
 | `sendQuoteEmail()`     | interne              | Compose et envoie l'email HTML avec le lien de signature + PDF en PJ.         |
 | `getTTCForDevis()`     | interne              | Retrouve le montant TTC d'un devis dans l'onglet formulaire.                  |
 | `onFormSubmit(e)`      | Trigger Sheets       | Handler hérité (envoi via Google Forms — potentiellement obsolète).            |
@@ -325,8 +328,9 @@ Point d'entrée : `DOMContentLoaded → cacheDom() + initDropzone() + initGoogle
 | Méthode | URL                                        | Payload / Params                                        | Réponse                                     |
 | ------- | -------------------------------------------- | ------------------------------------------------------- | ------------------------------------------- |
 | `GET`   | `GAS_URL?check={devisNumber}`                | N° de devis en query string                             | `{ signed: true/false }`                    |
+| `GET`   | `GAS_URL?getFile={fileId}`                   | ID Google Drive en query string                         | `{ status: "success", base64: "..." }`      |
 | `POST`  | `GAS_URL` (signature)                        | `{ devis, client, email, signature, timestamp }`        | `{ status: "success" }` ou `{ status: "error", message: "already_signed" }` |
-| `POST`  | `GAS_URL` (admin)                            | `{ action: "admin_devis", devis, client, email, fileId, driveUrl, totalTTC, horodateur }` | `{ status: "success/partial", driveUrl, errors }` |
+| `POST`  | `GAS_URL` (admin)                            | `{ action: "admin_devis", devis, client, ..., tvaReduced... }` | `{ status: "success/partial", driveUrl }` |
 | `POST`  | Google Drive REST API v3 (upload multipart)  | FormData (metadata JSON + file blob)                    | `{ id, webViewLink }`                       |
 | `POST`  | Google Drive REST API v3 (permissions)       | `{ role: "reader", type: "anyone" }`                    | Permission créée                            |
 
@@ -334,9 +338,9 @@ Point d'entrée : `DOMContentLoaded → cacheDom() + initDropzone() + initGoogle
 
 #### Onglet `Réponses au formulaire 1` (devis envoyés)
 
-| Colonne A     | Colonne B  | Colonne C    | Colonne D | Colonne E   | Colonne F  |
-| ------------- | ---------- | ------------ | --------- | ----------- | ---------- |
-| Horodateur    | N° Devis   | Nom client   | Email     | Lien Drive  | Total TTC  |
+| Colonne A     | Colonne B  | Colonne C    | Colonne D | Colonne E   | Colonne F  | Colonne G   |
+| ------------- | ---------- | ------------ | --------- | ----------- | ---------- | ----------- |
+| Horodateur    | N° Devis   | Nom client   | Email     | Lien Drive  | Total TTC  | TVA Réd.    |
 
 #### Onglet `Signatures` (signatures reçues)
 
@@ -348,7 +352,7 @@ Point d'entrée : `DOMContentLoaded → cacheDom() + initDropzone() + initGoogle
 
 - **Dossier cible :** ID `1Tslss...Nur6kjnEr8zJlC5nc8vSz-wZoBML0jb`
 - **Permissions :** Chaque fichier uploadé reçoit la permission `anyone:reader` pour permettre l'accès via le lien de signature.
-- **Accès PDF :** Via l'URL `https://drive.google.com/file/d/{fileId}/preview` (iframe dans la page client).
+- **Accès PDF :** Via le proxy GAS (`?getFile`) pour le composant Web, et via une iframe directe Google Drive pour la prévisualisation visuelle.
 
 ---
 
@@ -360,7 +364,7 @@ L'application est **stateless côté client** — aucun framework de state manag
 
 | État                  | Stockage                                                          |
 | --------------------- | ----------------------------------------------------------------- |
-| Paramètres du devis   | URL query params (`?devis=...&client=...&email=...&pdf=...`)      |
+| Paramètres du devis   | URL query params (`?devis=...&client=...&email=...&pdf=...&tva=1`) |
 | Token OAuth Google    | Variable globale `googleAccessToken` (mémoire, non persisté)      |
 | Fichier PDF sélectionné | Variable globale `currentFile` (mémoire, non persisté)          |
 | Statut de signature   | Vérifié en temps réel via GET au GAS à chaque chargement de page  |
@@ -394,7 +398,7 @@ L'application est **stateless côté client** — aucun framework de state manag
 #### 6.3 — CORS et requêtes cross-origin
 
 - **Google Apps Script** : Les requêtes vers GAS utilisent `Content-Type: text/plain;charset=utf-8` pour **éviter les preflight CORS** (requêtes OPTIONS).
-- **Téléchargement PDF** : Le téléchargement du fichier original depuis Google Drive pour modification utilise `corsproxy.io` afin de contourner les restrictions CORS du navigateur lors d'un `fetch` direct.
+- **Proxy PDF** : Télécharger un fichier directement via le webhook Google Drive cause des blocages CORS ou de session Google Workspace sur mobile. Notre proxy intégré dans `GAS: doGet(?getFile=)` télécharge le fichier natif grâce via `DriveApp` en backend, puis le convertit en Base64 et le passe au frontend. Le frontend décode le Base64 en `ArrayBuffer` sans aucun heurt CORS.
 
 ---
 
@@ -405,7 +409,7 @@ Le système envoie **3 types d'e-mails** HTML depuis le GAS via `MailApp.sendEma
 | Email                        | Destinataire         | Déclencheur                | Contenu                                                          |
 | ---------------------------- | -------------------- | -------------------------- | ---------------------------------------------------------------- |
 | **Devis à signer**           | Client               | Admin envoie le devis      | Lien de signature + PDF joint + coordonnées bancaires (IBAN/BIC) |
-| **Confirmation de signature** | Client               | Le client signe            | Confirmation + montant acompte (50% TTC) + RIB                  |
+| **Confirmation de signature** | Client               | Le client signe            | Confirmation + devis visuellement signé (X TVA, Date, Cachet) + montant acompte (50% TTC) + RIB |
 | **Notification interne**     | `contact@sarange.fr` | Le client signe            | Récapitulatif client/devis + lien vers le Google Sheet           |
 
 > Tous les e-mails utilisent des templates HTML inline (pas de fichiers externes) avec la charte graphique Sarange (couleurs `#0F172A`, `#F97316`, police inter).
@@ -418,18 +422,16 @@ Le système envoie **3 types d'e-mails** HTML depuis le GAS via `MailApp.sendEma
 
 | Point                                  | Détail                                                                                                                           |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Sécurité du lien de signature**      | Le lien client ne comporte aucun token signé ou expirant. Quiconque possède l'URL peut signer. Un token JWT ou HMAC avec expiration serait préférable. |
-| **Email en clair dans l'URL**          | L'adresse email du client transit dans les query params, visible dans les logs serveur, historique navigateur, et analytics.       |
-| **URL du webhook GAS exposée**         | L'URL du GAS est en clair dans le code JS frontend. Aucune vérification d'origine (pas de secret/API key côté GAS).               |
-| **Signature base64 en Google Sheet**   | Les images base64 (~30-100 Ko chacune) sont stockées directement dans une cellule du Sheet, ce qui impacte les performances à grande échelle. |
+| **Sécurité du lien de signature**      | Le lien client ne comporte aucun token expiré ou haché. Quiconque possède l'URL peut signer. |
+| **Email en clair dans l'URL**          | L'adresse email du client transit dans les query params.       |
+| **Signature base64 en Google Sheet**   | Les images base64 et PDFs encodés pèsent dans le Sheet, ce qui impacte les performances à très grande échelle. |
 
 ### 🟡 Importants
 
 | Point                                  | Détail                                                                                                                           |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **`onFormSubmit` potentiellement obsolète** | La fonction `onFormSubmit` dans le GAS semble être un vestige de l'ancienne version (Google Forms). Vérifier si elle est encore déclenchée. |
-| **Pas de gestion d'expiration du token** | Le token OAuth peut expirer pendant une session admin longue. Aucun mécanisme de refresh automatique n'est implémenté.            |
-| **Pas de tests automatisés**           | Aucun test unitaire ou d'intégration. Le `QuoteParserService` pourrait facilement être testé avec des fixtures de texte brut.     |
+| **Algorithme d'alignement PDF JS**     | La position du X dans le PDF (case TVA et Date) a été millimétrée empiriquement.  Un changement radical du layout générateur du PDF pourrait forcer une ré-évaluation numérique de l'offset (`mentionX` et `mentionY`). |
+| **`onFormSubmit`** | Historique "Google Forms" pouvant être retiré en toute pureté. |
 | **Pas d'environnement de staging**     | Les IDs Google (Sheet, Drive folder, Client ID) sont en dur dans le code. Pas de distinction dev/prod.                            |
 
 ### 🟢 Améliorations souhaitables
@@ -438,9 +440,6 @@ Le système envoie **3 types d'e-mails** HTML depuis le GAS via `MailApp.sendEma
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | **Variables d'environnement**          | Extraire les constantes (GOOGLE_CLIENT_ID, DRIVE_FOLDER_ID, API_URL) dans un fichier de config séparé.                            |
 | **Bundler / Build step**               | Le projet n'a pas de build process. Un bundler (Vite, esbuild) permettrait le tree-shaking, le minification et les modules ES.    |
-| **PWA / Service Worker**               | Les favicons et le tag `apple-touch-icon` sont présents mais aucun manifeste ou service worker n'est configuré.                   |
-| **Internationalisation**               | Toutes les chaînes sont en dur en français. Un système i18n serait utile si l'outil se déploie à l'international.                 |
-| **Accessibilité (a11y)**               | Les formulaires manquent d'attributs `aria-*`, et le canvas de signature n'a pas d'alternative accessible.                        |
 
 ---
 
@@ -450,7 +449,7 @@ Le système envoie **3 types d'e-mails** HTML depuis le GAS via `MailApp.sendEma
 
 ```bash
 # Servir les fichiers statiques (déjà en cours sur le poste)
-npx -y http-server d:\SignatureDevis -p 8080 --cors -c-1
+npx -y http-server . -p 8080 --cors -c-1
 ```
 
 Puis ouvrir :
